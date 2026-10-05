@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.store import store
+from app.store import ARCHIVED_DATE_FIELD, store
 
 MODULE = "certificate"
 REQUIRED_FIELDS = ["人员编号", "姓名", "证书类别"]
@@ -59,3 +59,24 @@ class CertificateService:
         entry["pending"] = target != STATUS_ORDER[-1]
         entry["abnormal"] = action in NEGATIVE_ACTIONS
         return entry, f"持证人员已{action}"
+
+    def refresh_retraining(self, training: dict[str, Any]) -> list[str]:
+        """培训记录归档进入检索索引后，同步持证人员的复训提醒。
+
+        按培训对象里的姓名匹配持证人员：考核合格记为复训完成，否则提醒再次
+        复训；复训记录指向最新归档的培训编号与归档日期，其他台账读到的就是
+        这同一份数据。
+        """
+        attendees = str(training.get("培训对象") or "")
+        if not attendees.strip():
+            return []
+        passed = str(training.get("考核结果") or "") == "合格"
+        record = f"{training.get('培训编号', '')}（{training.get(ARCHIVED_DATE_FIELD, '')}归档）"
+        reminded: list[str] = []
+        for row in store.rows(MODULE):
+            name = str(row.get("姓名") or "").strip()
+            if name and name in attendees:
+                row["复训记录"] = record
+                row["复训提醒"] = "复训已完成" if passed else "复训未通过，需再次复训"
+                reminded.append(name)
+        return reminded

@@ -18,10 +18,17 @@
       </article>
     </div>
 
-    <form class="filter-bar" @submit.prevent="reload">
+    <form class="filter-bar" @submit.prevent="search">
       <label v-for="field in filterFields" :key="field" class="filter-item">
         <span>{{ field }}</span>
         <input v-model="filters[field]" :placeholder="`按${field}检索`" />
+      </label>
+      <label class="filter-item">
+        <span>培训状态</span>
+        <select v-model="statusFilter">
+          <option value="">全部状态</option>
+          <option v-for="status in statuses" :key="status" :value="status">{{ status }}</option>
+        </select>
       </label>
       <button class="btn" type="submit">查询</button>
       <button class="btn ghost" type="button" @click="resetFilters">重置条件</button>
@@ -57,32 +64,55 @@
 
     <footer class="page-foot">
       <span>共 {{ total }} 条安全培训记录</span>
+      <span class="pager">
+        <button class="btn ghost" type="button" :disabled="page <= 1" @click="goPage(-1)">上一页</button>
+        <span>第 {{ page }} / {{ pageCount }} 页</span>
+        <button class="btn ghost" type="button" :disabled="page >= pageCount" @click="goPage(1)">下一页</button>
+      </span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
     </footer>
   </section>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 import { request } from '@/api/client'
 
 type Row = Record<string, string | number | null>
 
 const ENDPOINT = '/api/training'
-const columns = ["培训编号", "培训主题", "培训对象", "培训日期", "培训讲师", "考核方式", "考核结果", "培训状态"]
+const columns = ["培训编号", "培训主题", "培训对象", "培训日期", "培训讲师", "考核方式", "考核结果", "培训状态", "归档日期"]
 const actions = ["组织培训", "组织考核", "归档"]
 const statuses = ["待培训", "培训中", "已考核", "已归档"]
 const stats = [{"label": "待培训人数", "value": 0}, {"label": "已考核人数", "value": 0}, {"label": "合格率", "value": 0}]
 
 const rows = ref<Row[]>([])
 const total = ref(0)
+const page = ref(1)
+const size = ref(20)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
-const filterFields = columns.slice(0, 3)
+const filterFields = ["考核结果", "培训对象", "培训日期"]
+const statusFilter = ref('')
+
+const pageCount = computed(() => Math.max(1, Math.ceil(total.value / size.value)))
+
+function search() {
+  page.value = 1
+  void reload()
+}
 
 function resetFilters() {
   filters.value = {}
+  statusFilter.value = ''
+  page.value = 1
+  void reload()
+}
+
+function goPage(delta: number) {
+  // 翻页时检索条件留住，只在当前结果范围内移动页码
+  page.value = Math.min(Math.max(1, page.value + delta), pageCount.value)
   void reload()
 }
 
@@ -112,9 +142,19 @@ async function runAction(action: string, row: Row) {
 
 async function reload() {
   errorMessage.value = ''
-  const query = new URLSearchParams(filters.value as Record<string, string>).toString()
+  const params = new URLSearchParams()
+  for (const [field, value] of Object.entries(filters.value)) {
+    if (value) {
+      params.set(field, value)
+    }
+  }
+  if (statusFilter.value) {
+    params.set('status', statusFilter.value)
+  }
+  params.set('page', String(page.value))
+  params.set('size', String(size.value))
   try {
-    const response = await request(`${ENDPOINT}?${query}`)
+    const response = await request(`${ENDPOINT}?${params.toString()}`)
     if (!response.ok) {
       throw new Error('培训记录列表读取失败')
     }
