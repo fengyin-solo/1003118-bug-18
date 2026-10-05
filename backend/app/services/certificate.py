@@ -59,3 +59,22 @@ class CertificateService:
         entry["pending"] = target != STATUS_ORDER[-1]
         entry["abnormal"] = action in NEGATIVE_ACTIONS
         return entry, f"持证人员已{action}"
+
+    def sync_retraining(self, archived_trainings: list[dict[str, Any]]) -> None:
+        """按已归档的培训考核结果刷新复训提醒，与培训索引读同一份数据。"""
+        for holder in store.rows(MODULE):
+            name = str(holder.get("姓名") or "").strip()
+            related = [
+                doc for doc in archived_trainings
+                if name and name in str(doc.get("培训对象") or "")
+            ]
+            if not related:
+                holder["复训提醒"] = "暂无归档培训记录"
+                continue
+            latest = max(related, key=lambda doc: str(doc.get("归档日期") or ""))
+            result = str(latest.get("考核结果") or "").strip() or "未记录"
+            archived_on = str(latest.get("归档日期") or "日期待定")
+            if "不合格" in result:
+                holder["复训提醒"] = f"{archived_on} 考核不合格，需安排复训"
+            else:
+                holder["复训提醒"] = f"{archived_on} 复训{result}，已归档"

@@ -70,7 +70,7 @@ import { request } from '@/api/client'
 type Row = Record<string, string | number | null>
 
 const ENDPOINT = '/api/certificate'
-const columns = ["人员编号", "姓名", "证书类别", "证书编号", "发证日期", "到期日期", "复训记录", "证书状态"]
+const columns = ["人员编号", "姓名", "证书类别", "证书编号", "发证日期", "到期日期", "复训记录", "复训提醒", "证书状态"]
 const actions = ["安排复训", "登记过期", "注销证书"]
 const statuses = ["持证有效", "即将到期", "已过期", "已注销"]
 const stats = [{"label": "持证人员", "value": 0}, {"label": "到期人员", "value": 0}, {"label": "过期人员", "value": 0}]
